@@ -1,0 +1,82 @@
+const int sensorPins[8] = {3, 4, 5, 6, 7, 8, 9, 10}; // Pines digitales D3-D10
+bool calibrationDone = false;
+bool sensorState[8]; // Almacena el estado calibrado de cada sensor
+
+void setup() {
+  Serial.begin(9600);
+  // Activar resistencias pull-up internas
+  for (int i = 0; i < 8; i++) {
+    pinMode(sensorPins[i], INPUT_PULLUP);
+  }
+  
+  Serial.println("=== CALIBRACIÓN QTR-8A ===");
+  Serial.println("1. Coloca todos los sensores sobre BLANCO");
+  Serial.println("2. Envía 'C' para comenzar calibración");
+}
+
+void loop() {
+  if (!calibrationDone && Serial.available() > 0 && Serial.read() == 'C') {
+    calibrateSensors();
+  }
+  
+  if (calibrationDone) {
+    readLinePosition();
+  }
+}
+
+void calibrateSensors() {
+  Serial.println("Calibrando... Pasa los sensores sobre BLANCO y NEGRO");
+  delay(2000); // Tiempo para preparar la superficie
+  
+  // Leer estado base (blanco)
+  bool whiteState[8];
+  for (int i = 0; i < 8; i++) {
+    whiteState[i] = digitalRead(sensorPins[i]);
+  }
+  
+  Serial.println("Ahora pasa sobre la LÍNEA NEGRA...");
+  delay(3000); // Tiempo para mover sobre negro
+  
+  // Detectar patrones de negro
+  for (int i = 0; i < 8; i++) {
+    sensorState[i] = (digitalRead(sensorPins[i]) != whiteState[i]); // True si detecta negro
+  }
+  
+  Serial.println("Calibración completada!");
+  Serial.println("Resultados:");
+  for (int i = 0; i < 8; i++) {
+    Serial.print("Sensor ");
+    Serial.print(i);
+    Serial.print(": ");
+    Serial.println(sensorState[i] ? "NEGRO" : "BLANCO");
+  }
+  calibrationDone = true;
+}
+
+void readLinePosition() {
+  int activeSensors = 0;
+  int positionSum = 0;
+  bool lineDetected = false;
+
+  for (int i = 0; i < 8; i++) {
+    bool currentState = (digitalRead(sensorPins[i]) != sensorState[i]);
+    if (currentState) {
+      lineDetected = true;
+      positionSum += (i * 1000);
+      activeSensors++;
+    }
+  }
+
+  if (!lineDetected) {
+    Serial.println("FUERA DE RANGO");
+  } else {
+    int avgPosition = positionSum / activeSensors;
+    
+    if (avgPosition < 1500)       Serial.println("EXTREMO IZQUIERDO");
+    else if (avgPosition < 2500)  Serial.println("IZQUIERDA");
+    else if (avgPosition < 4500)  Serial.println("CENTRADO");
+    else if (avgPosition < 5500)  Serial.println("DERECHA");
+    else                          Serial.println("EXTREMO DERECHO");
+  }
+  delay(200);
+}
